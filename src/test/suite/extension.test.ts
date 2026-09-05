@@ -32,8 +32,11 @@ suite('Kotoshu extension smoke test', function () {
     const uri = fixtureUri();
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(document);
+    const extension = vscode.extensions.getExtension('kotoshu.kotoshu-vscode');
+    console.log('[kotoshu-test] extension active:', extension?.isActive);
 
     const diagnostics = await waitForDiagnostics(uri);
+    console.log('[kotoshu-test] diagnostics arrived:', diagnostics.length);
     assert.ok(diagnostics.length > 0, 'expected at least one kotoshu diagnostic');
     assert.strictEqual(diagnostics[0].source, 'kotoshu');
     const messages = diagnostics.map((d) => d.message).join('\n');

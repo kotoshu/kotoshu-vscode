@@ -31,6 +31,8 @@ const TEXT_LANGUAGES = ['plaintext', 'markdown', 'asciidoc'];
  */
 const CODE_LANGUAGES = ['ruby', 'python', 'javascript', 'typescript', 'go', 'rust', 'java'];
 
+const DEBUG = process.env.KOTOSHU_VSCODE_DEBUG === '1';
+
 let client: LanguageClient | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -204,6 +206,7 @@ function firstWorkspaceFolder(): string | undefined {
 async function startClient(): Promise<void> {
   const resolved = resolveServer();
   if (!resolved) {
+    console.error('[kotoshu] no kotoshu-lsp server found');
     showMissingServerHelp();
     return;
   }
@@ -215,6 +218,7 @@ async function startClient(): Promise<void> {
   diagnosticsByUri.clear();
 
   outputChannel?.appendLine(`Starting server: ${resolved.label}`);
+  console.log('[kotoshu] starting server:', resolved.label);
 
   const serverOptions: ServerOptions = {
     command: resolved.command,
@@ -234,7 +238,11 @@ async function startClient(): Promise<void> {
 
   client.start().catch((err) => {
     outputChannel?.appendLine(`Server failed to start: ${String(err)}`);
+    console.error('[kotoshu] server failed to start:', err);
     showMissingServerHelp();
+  });
+  client.onDidChangeState((event) => {
+    console.log('[kotoshu] client state:', event.oldState, '->', event.newState);
   });
 }
 
@@ -254,12 +262,15 @@ function clientOptions(): LanguageClientOptions {
     error: (_error, _message, count) => (count ?? 0) < 3
         ? { action: ErrorAction.Continue }
         : { action: ErrorAction.Shutdown, handled: true },
-    closed: () => ({
-      action: CloseAction.DoNotRestart,
-      message:
-        'kotoshu-lsp exited. Check the Kotoshu output channel, fix the cause, then run "Kotoshu: Restart Language Server".',
-      handled: true,
-    }),
+    closed: () => {
+      console.error('[kotoshu] server exited');
+      return {
+        action: CloseAction.DoNotRestart,
+        message:
+          'kotoshu-lsp exited. Check the Kotoshu output channel, fix the cause, then run "Kotoshu: Restart Language Server".',
+        handled: true,
+      };
+    },
   };
 
   return {
@@ -270,6 +281,9 @@ function clientOptions(): LanguageClientOptions {
     middleware: {
       // Keep the published diagnostics per URI (see diagnosticsByUri).
       handleDiagnostics: (uri, diagnostics, next) => {
+        if (DEBUG) {
+          console.log('[kotoshu] diagnostics for', uri.toString(), ':', diagnostics.length);
+        }
         const byRange = new Map<string, vscode.Diagnostic>();
         for (const diagnostic of diagnostics) {
           byRange.set(rangeKey(diagnostic.range), diagnostic);

@@ -81,3 +81,4 @@ jobs:
         timeout-minutes: 15
         env:
           KOTOSHU_QUIET: "1"
+          KOTOSHU_VSCODE_DEBUG: "1"
