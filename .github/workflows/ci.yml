@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck and bundle
+        run: npm run compile
+
+      # Packaging gate: vsce only WARNS on missing repository/README
+      # metadata, so check-manifest fails the build explicitly, and the
+      # .vsix is the release artifact.
+      - name: Package vsix
+        run: |
+          npm run check-manifest
+          npx vsce package --no-dependencies -o kotoshu-vscode.vsix
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kotoshu-vscode-vsix
+          path: kotoshu-vscode.vsix
+          if-no-files-found: error
+
+  smoke-test:
+    name: Smoke test in VS Code
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      # The kotoshu-lsp 0.1.0 gem published on RubyGems is EMPTY: its
+      # gemspec collects files with git ls-files and the .gem was built
+      # outside a git checkout, so it ships no lib/ and no exe/. Until
+      # the owner republishes a fixed gem, build and install 0.1.0 from
+      # the exact source commit (27aada2, the 0.1.0 release commit)
+      # inside a clone so git ls-files lists the files.
+      - name: Install kotoshu-lsp 0.1.0 server from source
+        run: |
+          git clone --quiet https://github.com/kotoshu/kotoshu-lsp.git /tmp/kotoshu-lsp
+          git -C /tmp/kotoshu-lsp checkout --quiet 27aada2
+          (cd /tmp/kotoshu-lsp && gem build kotoshu-lsp.gemspec)
+          gem install /tmp/kotoshu-lsp/kotoshu-lsp-0.1.0.gem --no-document
+          command -v kotoshu-lsp
+
+      - name: Pre-warm the en dictionary cache
+        run: ruby -e "require 'kotoshu'; Kotoshu.setup(:en)"
+        timeout-minutes: 5
+
+      - run: npm ci
+
+      - name: Install VS Code test dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0t64 libnss3 libasound2t64
+
+      - name: Run integration tests
+        run: xvfb-run -a npm test
+        timeout-minutes: 15
+        env:
+          KOTOSHU_QUIET: "1"
