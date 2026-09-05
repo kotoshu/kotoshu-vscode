@@ -374,11 +374,12 @@ function onConfigurationChanged(event: vscode.ConfigurationChangeEvent): void {
  * (uri, range) of the flagged word. When the user invokes the command
  * directly, the word under the cursor is used instead.
  *
- * Note: the file format mirrors Kotoshu::PersonalDictionary — one
- * lowercase word per line, sorted, unique, "#" comments allowed. The
- * current server build does not consult the personal dictionary yet, so
- * existing diagnostics do not clear; the file is picked up by the
- * `kotoshu personal` CLI today.
+ * When the server advertises the kotoshu.addToPersonalDictionary
+ * command (kotoshu-lsp PR #3 and later), it performs the write and
+ * republishes diagnostics, so the flag clears immediately. With an
+ * older server, this falls back to a local write — the file format
+ * mirrors Kotoshu::PersonalDictionary: one lowercase word per line,
+ * sorted, unique, "#" comments allowed; the next check picks it up.
  */
 async function addWordToPersonalDictionary(uriArg?: unknown, rangeArg?: unknown): Promise<void> {
   let document: vscode.TextDocument | undefined;
@@ -407,15 +408,37 @@ async function addWordToPersonalDictionary(uriArg?: unknown, rangeArg?: unknown)
     return;
   }
 
+  if (serverSupportsAddToDictionary()) {
+    const protocolRange = client!.code2ProtocolConverter.asRange(range);
+    try {
+      await client!.sendRequest('workspace/executeCommand', {
+        command: 'kotoshu.addToPersonalDictionary',
+        arguments: [document.uri.toString(), protocolRange],
+      });
+      void vscode.window.showInformationMessage(
+        `Kotoshu: added "${word}" to the personal dictionary.`,
+      );
+      return;
+    } catch {
+      // Older or failing server — fall through to the local write.
+    }
+  }
+
   const dictionaryPath = personalDictionaryPath();
   const added = writePersonalWord(dictionaryPath, word);
   if (added) {
     void vscode.window.showInformationMessage(
-      `Kotoshu: added "${word}" to ${dictionaryPath}. Note: kotoshu-lsp does not read the personal dictionary yet, so the diagnostic stays until the server adds support.`,
+      `Kotoshu: added "${word}" to ${dictionaryPath}.`,
     );
   } else {
     void vscode.window.showInformationMessage(`Kotoshu: "${word}" is already in ${dictionaryPath}.`);
   }
+}
+
+function serverSupportsAddToDictionary(): boolean {
+  const commands =
+    client?.initializeResult?.capabilities?.executeCommandProvider?.commands;
+  return Array.isArray(commands) && commands.includes('kotoshu.addToPersonalDictionary');
 }
 
 function personalDictionaryPath(): string {

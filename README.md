@@ -99,9 +99,11 @@ Two VS Code realities needed client-side adapters, both implemented as
 
 - **Language**: the server derives the natural language from the file
   extension and currently ships `en` only.
-- **Personal dictionary**: "add word" writes to `~/.config/kotoshu/personal.dic`
-  (same file as the `kotoshu personal` CLI), but kotoshu-lsp 0.1 does not read
-  the personal dictionary yet — existing diagnostics do not clear after adding
+- **Personal dictionary**: "add word" delegates to the server's
+  `kotoshu.addToPersonalDictionary` command when available (kotoshu-lsp built
+  from `main`, which writes `~/.config/kotoshu/personal.dic` and republishes
+  diagnostics so the flag clears immediately); with an older server it falls
+  back to a local write to the same file
   a word.
 
 ## Development
