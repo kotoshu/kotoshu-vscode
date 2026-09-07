@@ -2,6 +2,7 @@
 .vscode-test/**
 .github/**
 scripts/**
+PREPUBLISH.md
 src/**
 out/**
 test-fixture/**
