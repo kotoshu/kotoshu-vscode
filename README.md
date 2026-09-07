@@ -11,6 +11,33 @@ checker with Hunspell-style dictionaries.
      Markdown file and drop it here:
      ![Kotoshu for VS Code](docs/demo.gif) -->
 
+## Quickstart
+
+1. Install the language server (Ruby 3.1+):
+
+   ```bash
+   gem install kotoshu-lsp
+   ```
+
+   This pulls in the [kotoshu](https://github.com/kotoshu/kotoshu) gem as a
+   dependency. Use 0.1.1 or later — the first 0.1.0 gem published to RubyGems
+   was empty (see [Troubleshooting](#troubleshooting)).
+
+2. Install the extension:
+
+   - from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=kotoshu.kotoshu-vscode),
+   - from [Open VSX](https://open-vsx.org/extension/kotoshu/kotoshu-vscode)
+     (VSCodium and other Open VSX-based editors), or
+   - manually from the CI-built `.vsix`:
+     `code --install-extension kotoshu-vscode.vsix`.
+
+3. Open a Markdown file and misspell a word — it gets underlined, with
+   suggestions on hover and quick fixes from the lightbulb.
+
+On first use in a language, the server downloads the Kotoshu dictionary into
+`~/.cache/kotoshu/` (a minute or two on the first edit). Pre-warm with
+`kotoshu setup en` if you want the download up front.
+
 ## What it does
 
 For `plaintext`, `markdown`, and `asciidoc` files:
@@ -29,24 +56,24 @@ comment-only filtering yet, so expect false positives inside code.
 ## Requirements
 
 - Ruby 3.1 or later.
-- The server gem: `gem install kotoshu-lsp`
+- The server gem: `gem install kotoshu-lsp` (0.1.1 or later; it depends on
+  the `kotoshu` gem and installs both). The 0.1.0 gem currently on RubyGems
+  is **empty** — its file list was generated outside a git checkout, so the
+  installed gem has no `kotoshu-lsp` executable. If you installed that one,
+  upgrade: `gem update kotoshu-lsp`, or install from source:
+
+  ```bash
+  git clone https://github.com/kotoshu/kotoshu-lsp.git
+  cd kotoshu-lsp
+  gem build kotoshu-lsp.gemspec
+  gem install ./kotoshu-lsp-0.1.1.gem
+  ```
+
+  A source checkout also works without installing, via the
+  `kotoshu-lsp.serverPath` setting.
 - On first use in a language, Kotoshu downloads its dictionary into
   `~/.cache/kotoshu/` (see the [Kotoshu README](https://github.com/kotoshu/kotoshu#readme)).
   Set `KOTOSHU_OFFLINE=1` to never download.
-
-> **Note (2026-09):** the kotoshu-lsp 0.1.0 gem currently on RubyGems is
-> **empty** — its file list was generated outside a git checkout, so the
-> installed gem has no `kotoshu-lsp` executable. Until a fixed gem ships,
-> install the server from source:
->
-> ```bash
-> git clone https://github.com/kotoshu/kotoshu-lsp.git
-> cd kotoshu-lsp
-> gem build kotoshu-lsp.gemspec
-> gem install ./kotoshu-lsp-0.1.0.gem
-> ```
->
-> or point `kotoshu-lsp.serverPath` at a source checkout.
 
 ## Server discovery
 
@@ -79,6 +106,26 @@ installing, run **Kotoshu: Restart Language Server**.
 
 Changing `serverPath`, `logFile`, or `checkCode` restarts the server.
 
+## Troubleshooting
+
+**No squiggles — the language server is probably not running.** The extension
+needs the `kotoshu-lsp` executable. In order:
+
+1. Check the **Kotoshu** output channel (View → Output → Kotoshu). Server
+   stderr and startup failures land there; `kotoshu-lsp.trace` adds full LSP
+   traffic.
+2. Check that the server resolves: `command -v kotoshu-lsp` (or
+   `bundle exec kotoshu-lsp` inside a Gemfile workspace). If missing,
+   `gem install kotoshu-lsp` — then run **Kotoshu: Restart Language Server**.
+3. If the server lives elsewhere, point `kotoshu-lsp.serverPath` at it. When
+   the workspace has a `Gemfile`, the extension prefers
+   `bundle exec kotoshu-lsp`.
+4. For a server-side log, set `kotoshu-lsp.logFile` — the path is passed to
+   the server as `KOTOSHU_LSP_LOG`.
+5. Dictionary downloads: first use of a language downloads into
+   `~/.cache/kotoshu/`. With `KOTOSHU_OFFLINE=1` set, downloads are refused —
+   pre-warm with `kotoshu setup en`.
+
 ## How the extension bridges the server
 
 Two VS Code realities needed client-side adapters, both implemented as
@@ -103,8 +150,14 @@ Two VS Code realities needed client-side adapters, both implemented as
   `kotoshu.addToPersonalDictionary` command when available (kotoshu-lsp built
   from `main`, which writes `~/.config/kotoshu/personal.dic` and republishes
   diagnostics so the flag clears immediately); with an older server it falls
-  back to a local write to the same file
-  a word.
+  back to a local write to the same file, and diagnostics refresh on the next
+  edit.
+
+## Publishing
+
+Releases go to the Visual Studio Marketplace and Open VSX from CI, gated on
+owner-held tokens. The one-time publisher/token setup and the publish flow
+are documented in [PREPUBLISH.md](PREPUBLISH.md).
 
 ## Development
 

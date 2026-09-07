@@ -14,16 +14,25 @@
   },
   "homepage": "https://github.com/kotoshu/kotoshu-vscode#readme",
   "categories": [
-    "Linters"
+    "Linters",
+    "Other"
   ],
   "keywords": [
     "spell",
     "spellcheck",
     "spell checker",
+    "spelling",
+    "proofreading",
+    "hunspell",
     "lsp",
+    "language server",
     "markdown",
     "asciidoc"
   ],
+  "galleryBanner": {
+    "color": "#0b0d0a",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },

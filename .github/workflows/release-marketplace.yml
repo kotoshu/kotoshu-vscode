@@ -1,0 +1,66 @@
+name: Release (Marketplace)
+
+# Publishes the extension to the Visual Studio Marketplace. Requires the
+# VSCE_PAT repo secret (Azure DevOps personal access token with the
+# Marketplace > Manage scope). One-time setup: PREPUBLISH.md.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Extension version to publish (must match package.json)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to Visual Studio Marketplace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Publishing a version that does not match the release trigger would
+      # silently relist the wrong build, so fail before building.
+      - name: Verify version matches the release trigger
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          manifest="$(node -p "require('./package.json').version")"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            expected="${GITHUB_REF_NAME#v}"
+          else
+            expected="$INPUT_VERSION"
+          fi
+          if [ "$expected" != "$manifest" ]; then
+            echo "Refusing to publish: package.json says $manifest, release trigger says $expected." >&2
+            exit 1
+          fi
+
+      - name: Typecheck and bundle
+        run: npm run compile
+
+      # Same packaging gate as CI: vsce only WARNS on missing metadata,
+      # so check-manifest fails the build explicitly.
+      - name: Package vsix
+        run: |
+          npm run check-manifest
+          npx vsce package --no-dependencies -o kotoshu-vscode.vsix
+
+      # vsce reads the PAT from the VSCE_PAT environment variable.
+      - name: Publish
+        run: npx vsce publish --no-dependencies
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
